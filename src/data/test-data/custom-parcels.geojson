@@ -1,0 +1,132 @@
+{
+	"type": "FeatureCollection",
+	"name": "defaultParcelsGenerated",
+	"features": [
+		{
+			"type": "Feature",
+			"id": "lot-111",
+			"properties": {
+				"name": "Lot 111 - Dupont Circle",
+				"address": "Dupont Cir NW, Washington DC",
+				"source": "generated"
+			},
+			"geometry": {
+				"type": "Polygon",
+				"coordinates": [
+					[
+						[-77.0442, 38.9092],
+						[-77.0442, 38.9106],
+						[-77.0416, 38.9106],
+						[-77.0416, 38.9092],
+						[-77.0442, 38.9092]
+					]
+				]
+			}
+		},
+		{
+			"type": "Feature",
+			"id": "lot-222",
+			"properties": {
+				"name": "Lot 222 - Shaw",
+				"address": "7th St NW, Washington DC",
+				"source": "generated"
+			},
+			"geometry": {
+				"type": "Polygon",
+				"coordinates": [
+					[
+						[-77.0228, 38.9111],
+						[-77.0228, 38.9125],
+						[-77.0202, 38.9125],
+						[-77.0202, 38.9111],
+						[-77.0228, 38.9111]
+					]
+				]
+			}
+		},
+		{
+			"type": "Feature",
+			"id": "lot-333",
+			"properties": {
+				"name": "Lot 333 - NoMa",
+				"address": "N St NE, Washington DC",
+				"source": "generated"
+			},
+			"geometry": {
+				"type": "Polygon",
+				"coordinates": [
+					[
+						[-77.0086, 38.9064],
+						[-77.0086, 38.9078],
+						[-77.006, 38.9078],
+						[-77.006, 38.9064],
+						[-77.0086, 38.9064]
+					]
+				]
+			}
+		},
+		{
+			"type": "Feature",
+			"id": "lot-444",
+			"properties": {
+				"name": "Lot 444 - Capitol Hill",
+				"address": "E Capitol St SE, Washington DC",
+				"source": "generated"
+			},
+			"geometry": {
+				"type": "Polygon",
+				"coordinates": [
+					[
+						[-77.0058, 38.8885],
+						[-77.0058, 38.8899],
+						[-77.0032, 38.8899],
+						[-77.0032, 38.8885],
+						[-77.0058, 38.8885]
+					]
+				]
+			}
+		},
+		{
+			"type": "Feature",
+			"id": "lot-555",
+			"properties": {
+				"name": "Lot 555 - Southwest Waterfront",
+				"address": "Maine Ave SW, Washington DC",
+				"source": "generated"
+			},
+			"geometry": {
+				"type": "Polygon",
+				"coordinates": [
+					[
+						[-77.0172, 38.8729],
+						[-77.0172, 38.8743],
+						[-77.0146, 38.8743],
+						[-77.0146, 38.8729],
+						[-77.0172, 38.8729]
+					]
+				]
+			}
+		},
+		{
+			"type": "Feature",
+			"id": "lot-666",
+			"properties": {
+				"name": "Lot 666 - Georgetown",
+				"address": "M St NW, Washington DC",
+				"source": "generated"
+			},
+			"geometry": {
+				"type": "Polygon",
+				"coordinates": [
+					[
+						[-77.0633, 38.9058],
+						[-77.0633, 38.9072],
+						[-77.0607, 38.9072],
+						[-77.0607, 38.9058],
+						[-77.0633, 38.9058]
+					]
+				]
+			}
+		}
+	]
+}
