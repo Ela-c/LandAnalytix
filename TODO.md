@@ -23,3 +23,14 @@ Are planning approvals the only thing taking time? or is there any other blockin
 
 NEXT FEATURES:
 [] matchesSearch function: Consider more advanced matching (e.g., fuzzy search) if needed in the future
+
+<SiteSnapshot
+                    onResetView={handleResetView}
+                    zoning="Urban Growth Zone"
+                    zoningSchedule="Schedule 3"
+                    precinctName="Rockbank North PSP"
+                    precinctUrl="https://www.planning.vic.gov.au/permits-and-development/precinct-structure-plans"
+                    grossAreaHa="43.2 hectares"
+                    encumberedAreaHa="12.1 hectares"
+                    netDevelopableAreaHa="33.1 hectares"
+                />

@@ -4,477 +4,513 @@ import MapboxDraw from "@mapbox/mapbox-gl-draw";
 
 import defaultParcels from "@/data/defaultParcels";
 import type { ParcelFeature } from "@/types/parcels";
-import {
-	buildFeatureCollection,
-	boundsFromGeometry,
-	centroidFromGeometry,
-} from "@/utils/geo";
+import { buildFeatureCollection, boundsFromGeometry, centroidFromGeometry } from "@/utils/geo";
 
 import "mapbox-gl/dist/mapbox-gl.css";
 import "@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css";
 
-import UploadParcels from "@/components/upload-parcels";
 import SearchPanel, { type GeocodeFeature } from "@/components/search-panel";
-import SiteSnapshot from "@/components/site-snapshot";
 import { Switch } from "@/components/ui/switch";
+import LogoCard from "./components/logo-card";
+import ParcelUploadButton from "./components/map-toolbar-btns/upload-wrapper";
+import { TooltipProvider } from "./components/ui/tooltip";
+import { Card, CardContent } from "./components/ui/card";
+import ResetViewButton from "./components/map-toolbar-btns/reset-view";
+import DrawPolygonButton from "./components/map-toolbar-btns/draw";
 import { Separator } from "./components/ui/separator";
+import SiteSnapshot from "./components/site-snapshot-test";
 
 const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN ?? "INVALID_TOKEN";
-const MAP_STYLE = "mapbox://styles/mapbox/dark-v11";
+const MAP_STYLE = "mapbox://styles/mapbox/standard";
 const INITIAL_VIEW = {
-	center: [144.5804, -37.6845] as [number, number],
-	zoom: 12.5,
+    center: [144.5804, -37.6845] as [number, number],
+    zoom: 12.5,
 };
 const TERRAIN_ZOOM_THRESHOLD = 14.5;
 
 type DrawnParcelPayload = {
-	name: string;
-	notes: string;
-	geometry: ParcelFeature["geometry"];
+    name: string;
+    notes: string;
+    geometry: ParcelFeature["geometry"];
 };
 
 const saveDrawnParcel = (_payload: DrawnParcelPayload) => {
-	// TODO: Implement backend persistence once the API is available.
+    // TODO: Implement backend persistence once the API is available.
+    console.debug("Saving drawn parcel:", _payload);
+    throw new Error("Saving drawn parcels is not implemented yet.");
 };
 
 function App() {
-	const mapRef = useRef<mapboxgl.Map | null>(null);
-	const mapContainerRef = useRef<HTMLDivElement>(null);
-	const addressMarkerRef = useRef<mapboxgl.Marker | null>(null);
-	const drawRef = useRef<MapboxDraw | null>(null);
-	const drawPopupRef = useRef<mapboxgl.Popup | null>(null);
-	const [mapReady, setMapReady] = useState(false);
-	const [terrainAvailable, setTerrainAvailable] = useState(false);
-	const [terrainEnabled, setTerrainEnabled] = useState(false);
-	const [terrainTouched, setTerrainTouched] = useState(false);
+    const mapRef = useRef<mapboxgl.Map | null>(null);
+    const mapContainerRef = useRef<HTMLDivElement>(null);
+    const addressMarkerRef = useRef<mapboxgl.Marker | null>(null);
+    const drawRef = useRef<MapboxDraw | null>(null);
+    const drawPopupRef = useRef<mapboxgl.Popup | null>(null);
+    const [mapReady, setMapReady] = useState(false);
+    const [terrainAvailable, setTerrainAvailable] = useState(false);
+    const [terrainEnabled, setTerrainEnabled] = useState(false);
+    const [terrainTouched, setTerrainTouched] = useState(false);
 
-	const [uploadedParcels, setUploadedParcels] = useState<ParcelFeature[]>([]);
-	const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [isOpen, setIsOpen] = useState(false);
 
-	const allParcels = useMemo(
-		() => [...defaultParcels, ...uploadedParcels],
-		[uploadedParcels],
-	);
+    const hoveredIdRef = useRef<string | null>(null);
 
-	useEffect(() => {
-		mapboxgl.accessToken = MAPBOX_TOKEN;
+    const [uploadedParcels, setUploadedParcels] = useState<ParcelFeature[]>([]);
+    const [selectedId, setSelectedId] = useState<string | null>(null);
 
-		const map = new mapboxgl.Map({
-			container: mapContainerRef.current!,
-			style: MAP_STYLE,
-			center: INITIAL_VIEW.center,
-			zoom: INITIAL_VIEW.zoom,
-		});
+    const allParcels = useMemo(() => [...defaultParcels, ...uploadedParcels], [uploadedParcels]);
 
-		map.on("load", () => {
-			map.addSource("mapbox-dem", {
-				type: "raster-dem",
-				url: "mapbox://mapbox.mapbox-terrain-dem-v1",
-				tileSize: 512,
-				maxzoom: 14,
-			});
+    useEffect(() => {
+        mapboxgl.accessToken = MAPBOX_TOKEN;
 
-			if (!map.getLayer("sky")) {
-				map.addLayer({
-					id: "sky",
-					type: "sky",
-					paint: {
-						"sky-type": "atmosphere",
-						"sky-atmosphere-sun": [0.0, 90.0],
-						"sky-atmosphere-sun-intensity": 10,
-					},
-				});
-			}
+        const map = new mapboxgl.Map({
+            container: mapContainerRef.current!,
+            style: MAP_STYLE,
+            center: INITIAL_VIEW.center,
+            zoom: INITIAL_VIEW.zoom,
+        });
 
-			map.addSource("parcels", {
-				type: "geojson",
-				data: buildFeatureCollection(defaultParcels),
-			});
+        map.on("load", () => {
+            map.addSource("mapbox-dem", {
+                type: "raster-dem",
+                url: "mapbox://mapbox.mapbox-terrain-dem-v1",
+                tileSize: 512,
+                maxzoom: 14,
+            });
 
-			map.addLayer({
-				id: "parcels-fill",
-				type: "fill",
-				source: "parcels",
-				paint: {
-					"fill-color": "#22c55e",
-					"fill-opacity": 0.12,
-				},
-			});
+            if (!map.getLayer("sky")) {
+                map.addLayer({
+                    id: "sky",
+                    type: "sky",
+                    paint: {
+                        "sky-type": "atmosphere",
+                        "sky-atmosphere-sun": [0.0, 90.0],
+                        "sky-atmosphere-sun-intensity": 10,
+                    },
+                });
+            }
 
-			map.addLayer({
-				id: "parcels-outline",
-				type: "line",
-				source: "parcels",
-				paint: {
-					"line-color": "#22c55e",
-					"line-width": 1.25,
-				},
-			});
+            map.addSource("parcels", {
+                type: "geojson",
+                data: buildFeatureCollection(defaultParcels),
+                generateId: true,
+            });
 
-			map.addLayer({
-				id: "parcel-highlight",
-				type: "line",
-				source: "parcels",
-				paint: {
-					"line-color": "#f97316",
-					"line-width": 3,
-				},
-				filter: ["==", ["get", "id"], ""],
-			});
+            map.addLayer({
+                id: "parcels-fill",
+                type: "fill",
+                source: "parcels",
+                paint: {
+                    "fill-color": [
+                        "case",
+                        ["boolean", ["feature-state", "hover"], false],
+                        "#ff0000", // Color for hovered parcels
+                        "#083068", // Default color for parcels
+                    ],
+                    "fill-opacity": 0.3,
+                },
+            });
 
-			drawRef.current = new MapboxDraw({
-				displayControlsDefault: false,
-				controls: {
-					polygon: true,
-					trash: true,
-				},
-			});
-			map.addControl(drawRef.current, "top-right");
+            map.addLayer({
+                id: "parcels-outline",
+                type: "line",
+                source: "parcels",
+                paint: {
+                    "line-color": "#217185",
+                    "line-width": 1.25,
+                },
+            });
 
-			setMapReady(true);
-		});
+            map.addLayer({
+                id: "parcel-highlight",
+                type: "line",
+                source: "parcels",
+                paint: {
+                    "line-color": "#f97316",
+                    "line-width": 3,
+                },
+                filter: ["==", ["get", "id"], ""],
+            });
 
-		mapRef.current = map;
+            drawRef.current = new MapboxDraw({
+                displayControlsDefault: false,
+                controls: {
+                    polygon: true,
+                    trash: true,
+                },
+            });
+            map.addControl(drawRef.current, "top-right");
 
-		return () => {
-			addressMarkerRef.current?.remove();
-			drawPopupRef.current?.remove();
-			if (drawRef.current) {
-				map.removeControl(drawRef.current);
-				drawRef.current = null;
-			}
-			map.remove();
-		};
-	}, []);
+            setMapReady(true);
+        });
 
-	useEffect(() => {
-		if (!mapReady || !mapRef.current) return;
-		const map = mapRef.current;
+        mapRef.current = map;
 
-		const updateTerrainAvailability = () => {
-			const zoom = map.getZoom();
-			const available = zoom >= TERRAIN_ZOOM_THRESHOLD;
-			setTerrainAvailable(available);
-			if (available && !terrainTouched) {
-				setTerrainEnabled(true);
-			}
-		};
+        return () => {
+            addressMarkerRef.current?.remove();
+            drawPopupRef.current?.remove();
+            if (drawRef.current) {
+                map.removeControl(drawRef.current);
+                drawRef.current = null;
+            }
+            map.remove();
+        };
+    }, []);
 
-		updateTerrainAvailability();
-		map.on("zoom", updateTerrainAvailability);
+    useEffect(() => {
+        if (!mapReady || !mapRef.current) return;
+        const map = mapRef.current;
 
-		return () => {
-			map.off("zoom", updateTerrainAvailability);
-		};
-	}, [mapReady, terrainTouched]);
+        const updateTerrainAvailability = () => {
+            const zoom = map.getZoom();
+            const available = zoom >= TERRAIN_ZOOM_THRESHOLD;
+            setTerrainAvailable(available);
+            if (available && !terrainTouched) {
+                setTerrainEnabled(true);
+            }
+        };
 
-	useEffect(() => {
-		if (!mapReady || !mapRef.current) return;
-		const map = mapRef.current;
-		if (!terrainAvailable) {
-			map.setTerrain(null);
-			return;
-		}
-		map.setTerrain(
-			terrainEnabled
-				? { source: "mapbox-dem", exaggeration: 1.25 }
-				: null,
-		);
-	}, [mapReady, terrainAvailable, terrainEnabled]);
+        updateTerrainAvailability();
+        map.on("zoom", updateTerrainAvailability);
 
-	useEffect(() => {
-		if (!mapReady) return;
-		const map = mapRef.current;
-		const source = map?.getSource("parcels") as
-			| mapboxgl.GeoJSONSource
-			| undefined;
-		if (source) {
-			source.setData(buildFeatureCollection(allParcels));
-		}
-	}, [allParcels, mapReady]);
+        return () => {
+            map.off("zoom", updateTerrainAvailability);
+        };
+    }, [mapReady, terrainTouched]);
 
-	useEffect(() => {
-		if (!mapReady || !mapRef.current) return;
-		mapRef.current.setFilter("parcel-highlight", [
-			"==",
-			["get", "id"],
-			selectedId ?? "",
-		]);
-	}, [selectedId, mapReady]);
+    useEffect(() => {
+        if (!mapReady || !mapRef.current) return;
+        const map = mapRef.current;
+        if (!terrainAvailable) {
+            map.setTerrain(null);
+            return;
+        }
+        map.setTerrain(terrainEnabled ? { source: "mapbox-dem", exaggeration: 1.25 } : null);
+    }, [mapReady, terrainAvailable, terrainEnabled]);
 
-	const clearSelections = useCallback(() => {
-		setSelectedId(null);
-		addressMarkerRef.current?.remove();
-		addressMarkerRef.current = null;
-	}, []);
+    useEffect(() => {
+        if (!mapReady) return;
+        const map = mapRef.current;
+        const source = map?.getSource("parcels") as mapboxgl.GeoJSONSource | undefined;
+        if (source) {
+            source.setData(buildFeatureCollection(allParcels));
+        }
+    }, [allParcels, mapReady]);
 
-	useEffect(() => {
-		if (!mapReady || !mapRef.current) return;
-		const map = mapRef.current;
+    useEffect(() => {
+        if (!mapReady || !mapRef.current) return;
+        mapRef.current.setFilter("parcel-highlight", ["==", ["get", "id"], selectedId ?? ""]);
+    }, [selectedId, mapReady]);
 
-		const handleClick = (event: mapboxgl.MapMouseEvent) => {
-			const features = map.queryRenderedFeatures(event.point, {
-				layers: ["parcels-fill", "parcels-outline"],
-			});
-			const match = features.find((feature) => feature.properties?.id);
-			if (!match?.properties?.id) return;
-			const id = String(match.properties.id);
-			const parcel = allParcels.find((p) => p.id === id);
-			if (parcel) {
-				handleSelect(parcel);
-			}
-		};
+    const clearSelections = useCallback(() => {
+        setSelectedId(null);
+        addressMarkerRef.current?.remove();
+        addressMarkerRef.current = null;
+        setIsOpen(false);
+    }, []);
 
-		const setPointer = () => {
-			map.getCanvas().style.cursor = "pointer";
-		};
-		const unsetPointer = () => {
-			map.getCanvas().style.cursor = "";
-		};
-		const handleMapClick = (event: mapboxgl.MapMouseEvent) => {
-			const features = map.queryRenderedFeatures(event.point, {
-				layers: ["parcels-fill", "parcels-outline"],
-			});
-			if (features.some((feature) => feature.properties?.id)) return;
-			clearSelections();
-		};
+    const flyToParcel = (parcel: ParcelFeature) => {
+        const map = mapRef.current;
+        if (!map) return;
+        const bounds = boundsFromGeometry(parcel.geometry);
+        map.fitBounds(bounds, { padding: 60, duration: 900 });
+    };
 
-		map.on("click", "parcels-fill", handleClick);
-		map.on("click", "parcels-outline", handleClick);
-		map.on("mouseenter", "parcels-fill", setPointer);
-		map.on("mouseleave", "parcels-fill", unsetPointer);
-		map.on("click", handleMapClick);
+    const handleSelect = (parcel: ParcelFeature) => {
+        setSelectedId(parcel.id);
+        flyToParcel(parcel);
+        setIsOpen(true);
+    };
 
-		return () => {
-			map.off("click", "parcels-fill", handleClick);
-			map.off("click", "parcels-outline", handleClick);
-			map.off("mouseenter", "parcels-fill", setPointer);
-			map.off("mouseleave", "parcels-fill", unsetPointer);
-			map.off("click", handleMapClick);
-		};
-	}, [allParcels, clearSelections, mapReady]);
+    // Handle mouse interactions for parcel selection and hover states
+    useEffect(() => {
+        if (!mapReady || !mapRef.current) return;
+        const map = mapRef.current;
 
-	const flyToParcel = (parcel: ParcelFeature) => {
-		const map = mapRef.current;
-		if (!map) return;
-		const bounds = boundsFromGeometry(parcel.geometry);
-		map.fitBounds(bounds, { padding: 60, duration: 900 });
-	};
+        const handleClick = (event: mapboxgl.MapMouseEvent) => {
+            const features = map.queryRenderedFeatures(event.point, {
+                layers: ["parcels-fill", "parcels-outline"],
+            });
+            const match = features.find((feature) => feature.properties?.id);
+            if (!match?.properties?.id) return;
+            const id = String(match.properties.id);
+            const parcel = allParcels.find((p) => p.id === id);
+            if (parcel) {
+                handleSelect(parcel);
+            }
+        };
 
-	const handleResetView = () => {
-		setSelectedId(null);
-		const map = mapRef.current;
-		if (!map) return;
-		map.easeTo({
-			center: INITIAL_VIEW.center,
-			zoom: INITIAL_VIEW.zoom,
-			bearing: 0,
-			pitch: 0,
-			duration: 800,
-		});
-	};
+        const setPointer = () => {
+            map.getCanvas().style.cursor = "pointer";
+        };
+        const unsetPointer = () => {
+            map.getCanvas().style.cursor = "";
+        };
+        const handleMapClick = (event: mapboxgl.MapMouseEvent) => {
+            const features = map.queryRenderedFeatures(event.point, {
+                layers: ["parcels-fill", "parcels-outline"],
+            });
+            if (features.some((feature) => feature.properties?.id)) return;
+            clearSelections();
+        };
 
-	const handleTerrainToggle = (checked: boolean) => {
-		setTerrainTouched(true);
-		setTerrainEnabled(checked);
-	};
+        map.on("click", "parcels-fill", handleClick);
+        map.on("click", "parcels-outline", handleClick);
+        map.on("mouseenter", "parcels-fill", (e) => {
+            console.debug("Hovering over parcels");
+            if (!e.features || e.features.length === 0) return;
+            if (hoveredIdRef.current !== null) {
+                map.setFeatureState(
+                    { source: "parcels", id: hoveredIdRef.current },
+                    { hover: false }
+                );
+            }
+            hoveredIdRef.current = String(e.features[0].id);
+            map.setFeatureState({ source: "parcels", id: hoveredIdRef.current }, { hover: true });
+            setPointer();
+        });
+        map.on("mouseleave", "parcels-fill", () => {
+            if (hoveredIdRef.current !== null) {
+                map.setFeatureState(
+                    { source: "parcels", id: hoveredIdRef.current },
+                    { hover: false }
+                );
+                hoveredIdRef.current = null;
+            }
+            console.debug("Stopped hovering over parcels");
+            unsetPointer();
+        });
+        map.on("click", handleMapClick);
 
-	const handleSelect = (parcel: ParcelFeature) => {
-		setSelectedId(parcel.id);
-		flyToParcel(parcel);
-	};
+        return () => {
+            map.off("click", "parcels-fill", handleClick);
+            map.off("click", "parcels-outline", handleClick);
+            map.off("click", handleMapClick);
+        };
+    }, [allParcels, clearSelections, mapReady]);
 
-	const flyToAddress = (center: [number, number]) => {
-		const map = mapRef.current;
-		if (!map) return;
+    const handleResetView = () => {
+        setSelectedId(null);
+        const map = mapRef.current;
+        if (!map) return;
+        map.easeTo({
+            center: INITIAL_VIEW.center,
+            zoom: INITIAL_VIEW.zoom,
+            bearing: 0,
+            pitch: 0,
+            duration: 800,
+        });
+    };
 
-		map.flyTo({ center, zoom: 16, duration: 900 });
-	};
+    const handleTerrainToggle = (checked: boolean) => {
+        setTerrainTouched(true);
+        setTerrainEnabled(checked);
+    };
 
-	const focusAddress = (feature: GeocodeFeature) => {
-		const map = mapRef.current;
-		if (!map) return;
-		setSelectedId(null);
-		addressMarkerRef.current?.remove();
-		addressMarkerRef.current = new mapboxgl.Marker({ color: "#22c55e" })
-			.setLngLat(feature.center)
-			.addTo(map);
-		flyToAddress(feature.center);
-	};
+    const flyToAddress = (center: [number, number]) => {
+        const map = mapRef.current;
+        if (!map) return;
 
-	const openDrawPopup = (
-		geometry: ParcelFeature["geometry"],
-		center: [number, number],
-	) => {
-		const map = mapRef.current;
-		if (!map) return;
+        map.flyTo({ center, zoom: 16, duration: 900 });
+    };
 
-		drawPopupRef.current?.remove();
+    const focusAddress = (feature: GeocodeFeature) => {
+        const map = mapRef.current;
+        if (!map) return;
+        setSelectedId(null);
+        addressMarkerRef.current?.remove();
+        addressMarkerRef.current = new mapboxgl.Marker({ color: "#22c55e" })
+            .setLngLat(feature.center)
+            .addTo(map);
+        flyToAddress(feature.center);
+    };
 
-		const container = document.createElement("div");
-		container.className = "space-y-2 text-sm text-neutral-100";
+    const openDrawPopup = (geometry: ParcelFeature["geometry"], center: [number, number]) => {
+        const map = mapRef.current;
+        if (!map) return;
 
-		const title = document.createElement("div");
-		title.className = "text-sm font-semibold";
-		title.textContent = "New parcel details";
+        drawPopupRef.current?.remove();
 
-		const nameLabel = document.createElement("label");
-		nameLabel.className = "block text-xs text-neutral-300";
-		nameLabel.textContent = "Parcel name";
-		const nameInput = document.createElement("input");
-		nameInput.type = "text";
-		nameInput.placeholder = "Untitled parcel";
-		nameInput.className =
-			"mt-1 w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-100 focus:border-emerald-400 focus:outline-none";
+        const container = document.createElement("div");
+        container.className = "space-y-2 text-sm text-neutral-100";
 
-		const notesLabel = document.createElement("label");
-		notesLabel.className = "block text-xs text-neutral-300";
-		notesLabel.textContent = "Notes";
-		const notesInput = document.createElement("textarea");
-		notesInput.rows = 2;
-		notesInput.placeholder = "Add quick notes";
-		notesInput.className =
-			"mt-1 w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-100 focus:border-emerald-400 focus:outline-none";
+        const title = document.createElement("div");
+        title.className = "text-sm font-semibold";
+        title.textContent = "New parcel details";
 
-		const actions = document.createElement("div");
-		actions.className = "flex items-center justify-end gap-2 pt-1";
+        const nameLabel = document.createElement("label");
+        nameLabel.className = "block text-xs text-neutral-300";
+        nameLabel.textContent = "Parcel name";
+        const nameInput = document.createElement("input");
+        nameInput.type = "text";
+        nameInput.placeholder = "Untitled parcel";
+        nameInput.className =
+            "mt-1 w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-100 focus:border-emerald-400 focus:outline-none";
 
-		const cancelButton = document.createElement("button");
-		cancelButton.type = "button";
-		cancelButton.textContent = "Cancel";
-		cancelButton.className =
-			"rounded border border-neutral-700 px-2 py-1 text-xs text-neutral-200 hover:border-neutral-400";
+        const notesLabel = document.createElement("label");
+        notesLabel.className = "block text-xs text-neutral-300";
+        notesLabel.textContent = "Notes";
+        const notesInput = document.createElement("textarea");
+        notesInput.rows = 2;
+        notesInput.placeholder = "Add quick notes";
+        notesInput.className =
+            "mt-1 w-full rounded border border-neutral-700 bg-neutral-900 px-2 py-1 text-xs text-neutral-100 focus:border-emerald-400 focus:outline-none";
 
-		const saveButton = document.createElement("button");
-		saveButton.type = "button";
-		saveButton.textContent = "Save";
-		saveButton.className =
-			"rounded border border-emerald-400/60 px-2 py-1 text-xs text-emerald-200 hover:border-emerald-300";
+        const actions = document.createElement("div");
+        actions.className = "flex items-center justify-end gap-2 pt-1";
 
-		cancelButton.addEventListener("click", () => {
-			drawPopupRef.current?.remove();
-			drawPopupRef.current = null;
-		});
+        const cancelButton = document.createElement("button");
+        cancelButton.type = "button";
+        cancelButton.textContent = "Cancel";
+        cancelButton.className =
+            "rounded border border-neutral-700 px-2 py-1 text-xs text-neutral-200 hover:border-neutral-400";
 
-		saveButton.addEventListener("click", () => {
-			saveDrawnParcel({
-				name: nameInput.value.trim() || "Untitled parcel",
-				notes: notesInput.value.trim(),
-				geometry,
-			});
-			drawPopupRef.current?.remove();
-			drawPopupRef.current = null;
-		});
+        const saveButton = document.createElement("button");
+        saveButton.type = "button";
+        saveButton.textContent = "Save";
+        saveButton.className =
+            "rounded border border-emerald-400/60 px-2 py-1 text-xs text-emerald-200 hover:border-emerald-300";
 
-		actions.append(cancelButton, saveButton);
-		nameLabel.appendChild(nameInput);
-		notesLabel.appendChild(notesInput);
-		container.append(title, nameLabel, notesLabel, actions);
+        cancelButton.addEventListener("click", () => {
+            drawPopupRef.current?.remove();
+            drawPopupRef.current = null;
+        });
 
-		drawPopupRef.current = new mapboxgl.Popup({
-			closeOnClick: false,
-			closeButton: true,
-			maxWidth: "260px",
-		})
-			.setLngLat(center)
-			.setDOMContent(container)
-			.addTo(map);
-	};
+        saveButton.addEventListener("click", () => {
+            saveDrawnParcel({
+                name: nameInput.value.trim() || "Untitled parcel",
+                notes: notesInput.value.trim(),
+                geometry,
+            });
+            drawPopupRef.current?.remove();
+            drawPopupRef.current = null;
+        });
 
-	useEffect(() => {
-		if (!mapReady || !mapRef.current || !drawRef.current) return;
-		const map = mapRef.current;
+        actions.append(cancelButton, saveButton);
+        nameLabel.appendChild(nameInput);
+        notesLabel.appendChild(notesInput);
+        container.append(title, nameLabel, notesLabel, actions);
 
-		type DrawEvent = {
-			features: Array<{ geometry: ParcelFeature["geometry"] }>;
-		};
+        drawPopupRef.current = new mapboxgl.Popup({
+            closeOnClick: false,
+            closeButton: true,
+            maxWidth: "260px",
+        })
+            .setLngLat(center)
+            .setDOMContent(container)
+            .addTo(map);
+    };
 
-		const handleDrawCreate = (event: DrawEvent) => {
-			const feature = event.features[0];
-			if (!feature || feature.geometry.type !== "Polygon") return;
-			const center = centroidFromGeometry(feature.geometry) as [
-				number,
-				number,
-			];
-			openDrawPopup(feature.geometry, center);
-		};
+    useEffect(() => {
+        if (!mapReady || !mapRef.current || !drawRef.current) return;
+        const map = mapRef.current;
 
-		const handleDrawUpdate = (event: DrawEvent) => {
-			const feature = event.features[0];
-			if (!feature || feature.geometry.type !== "Polygon") return;
-			const center = centroidFromGeometry(feature.geometry) as [
-				number,
-				number,
-			];
-			openDrawPopup(feature.geometry, center);
-		};
+        type DrawEvent = {
+            features: Array<{ geometry: ParcelFeature["geometry"] }>;
+        };
 
-		map.on("draw.create", handleDrawCreate);
-		map.on("draw.update", handleDrawUpdate);
+        const handleDrawCreate = (event: DrawEvent) => {
+            const feature = event.features[0];
+            if (!feature || feature.geometry.type !== "Polygon") return;
+            const center = centroidFromGeometry(feature.geometry) as [number, number];
+            openDrawPopup(feature.geometry, center);
+        };
 
-		return () => {
-			map.off("draw.create", handleDrawCreate);
-			map.off("draw.update", handleDrawUpdate);
-		};
-	}, [mapReady]);
+        const handleDrawUpdate = (event: DrawEvent) => {
+            const feature = event.features[0];
+            if (!feature || feature.geometry.type !== "Polygon") return;
+            const center = centroidFromGeometry(feature.geometry) as [number, number];
+            openDrawPopup(feature.geometry, center);
+        };
 
-	return (
-		<div className="flex absolute inset-0 h-full w-full bg-neutral-900 text-white">
-			<div className="w-[400px] p-4 border-r border-neutral-800 bg-neutral-950/70 backdrop-blur h-full overflow-y-auto">
-				<SiteSnapshot
-					onResetView={handleResetView}
-					zoning="Urban Growth Zone"
-					zoningSchedule="Schedule 3"
-					precinctName="Rockbank North PSP"
-					precinctUrl="https://www.planning.vic.gov.au/permits-and-development/precinct-structure-plans"
-					grossAreaHa="43.2 hectares"
-					encumberedAreaHa="12.1 hectares"
-					netDevelopableAreaHa="33.1 hectares"
-				/>
-				<Separator className="bg-neutral-800 my-4" />
-				<SearchPanel
-					parcels={allParcels}
-					selectedParcelId={selectedId}
-					mapboxToken={MAPBOX_TOKEN}
-					mapReady={mapReady}
-					onParcelSelect={handleSelect}
-					onAddressSelect={focusAddress}
-				/>
-				{terrainAvailable && (
-					<div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-900/60 px-3 py-3">
-						<div className="flex items-center justify-between">
-							<div>
-								<p className="text-xs uppercase tracking-wide text-neutral-400">
-									Terrain mode
-								</p>
-								<p className="text-sm font-semibold text-white">
-									3D terrain
-								</p>
-							</div>
-							<Switch
-								checked={terrainEnabled}
-								onCheckedChange={handleTerrainToggle}
-								aria-label="Toggle 3D terrain"
-							/>
-						</div>
-						<p className="mt-2 text-xs text-neutral-400">
-							Zoom 14.5+ enables terrain relief.
-						</p>
-					</div>
-				)}
-				<Separator className="bg-neutral-800 my-4" />
-				<UploadParcels
-					onAddParcels={(parcels) =>
-						setUploadedParcels((prev) => [...prev, ...parcels])
-					}
-				/>
-			</div>
+        map.on("draw.create", handleDrawCreate);
+        map.on("draw.update", handleDrawUpdate);
 
-			<div className="flex-1">
-				<div id="map" className="h-full w-full" ref={mapContainerRef} />
-			</div>
-		</div>
-	);
+        return () => {
+            map.off("draw.create", handleDrawCreate);
+            map.off("draw.update", handleDrawUpdate);
+        };
+    }, [mapReady]);
+
+    return (
+        <TooltipProvider>
+            <div className="flex absolute inset-0 h-full w-full">
+                <div className="absolute z-50 p-4 h-full w-full overflow-y-auto bg-transparent pointer-events-none">
+                    <div className="absolute z-51 top-5 left-4 right-4 max-w-sm mx-auto">
+                        <SearchPanel
+                            parcels={allParcels}
+                            selectedParcelId={selectedId}
+                            mapboxToken={MAPBOX_TOKEN}
+                            mapReady={mapReady}
+                            onParcelSelect={handleSelect}
+                            onAddressSelect={focusAddress}
+                        />
+                    </div>
+                    <LogoCard />
+                    <div className="flex-col justify-between my-5 w-fit">
+                        {/* Map ToolBar */}
+                        <Card className="w-fit py-2 pointer-events-auto">
+                            <CardContent className="bg-white px-2 w-fit">
+                                <div className="flex flex-col gap-1">
+                                    <ResetViewButton onResetView={handleResetView} />
+                                    <DrawPolygonButton />
+                                    <ParcelUploadButton setUploadedParcels={setUploadedParcels} />
+                                    <ParcelUploadButton setUploadedParcels={setUploadedParcels} />
+                                    <Separator className="my-1" />
+                                    <ParcelUploadButton setUploadedParcels={setUploadedParcels} />
+                                    <ParcelUploadButton setUploadedParcels={setUploadedParcels} />
+                                    <Separator className="my-1" />
+                                    <ParcelUploadButton setUploadedParcels={setUploadedParcels} />
+                                    <ParcelUploadButton setUploadedParcels={setUploadedParcels} />
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </div>
+                    {terrainAvailable && (
+                        <div className="mt-4 rounded-2xl border border-neutral-800 bg-neutral-900/60 px-3 py-3">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-xs uppercase tracking-wide text-neutral-400">
+                                        Terrain mode
+                                    </p>
+                                    <p className="text-sm font-semibold text-white">3D terrain</p>
+                                </div>
+                                <Switch
+                                    checked={terrainEnabled}
+                                    onCheckedChange={handleTerrainToggle}
+                                    aria-label="Toggle 3D terrain"
+                                />
+                            </div>
+                            <p className="mt-2 text-xs text-neutral-400">
+                                Zoom 14.5+ enables terrain relief.
+                            </p>
+                        </div>
+                    )}
+                </div>
+
+                <div
+                    className={`fixed inset-y-0 right-0 z-50 w-96 transform transition-transform duration-300 ${
+                        isOpen ? "translate-x-0" : "translate-x-full"
+                    }`}
+                >
+                    <SiteSnapshot
+                        encumberedAreaHa="2.5"
+                        grossAreaHa="10.2"
+                        netDevelopableAreaHa="7.7"
+                        precinctName="Central Precinct"
+                        precinctUrl="https://www.melton.vic.gov.au/Services/Planning-and-Building/Strategic-Planning/Precinct-Structure-Plans"
+                        zoning="General Residential Zone (GRZ)"
+                        zoningSchedule="Schedule 1"
+                        onClose={() => setIsOpen(false)}
+                    />
+                </div>
+
+                <div className="flex-1">
+                    <div id="map" className="h-full w-full" ref={mapContainerRef} />
+                </div>
+            </div>
+        </TooltipProvider>
+    );
 }
 
 export default App;
