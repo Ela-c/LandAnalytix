@@ -2,7 +2,7 @@
 
 [x] Add button to draw a polygon on the map. After drawing the polygon show a pop up to prompt the user for more information about the parcel. The drawing should be snapped automatically to fences and roads. (They don't snap automatically, is this important enough to reseach about it?)
 
-[] Add 3D layer to the map. Show buildings and land in 3D. (Nearmap? Yeah nearmap offers 3D maps. Price?)
+[x] Add 3D layer to the map. Show buildings and land in 3D. (Nearmap? Yeah nearmap offers 3D maps. Price?)
 
 [] On selecting a parcel, automatically analyse all the risks, legal area, etc. and show them.
 
